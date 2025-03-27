@@ -17,7 +17,9 @@ defmodule RelicarioWeb.Router do
   scope "/", RelicarioWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    # get "/", PageController, :home
+    live "/", HomeLive, :home
+    live "/:locale", HomeLive, :home
   end
 
   # Other scopes may use custom stacks.

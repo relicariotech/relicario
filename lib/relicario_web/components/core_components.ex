@@ -90,6 +90,454 @@ defmodule RelicarioWeb.CoreComponents do
     """
   end
 
+  def show_mobile_navigation(js \\ %JS{}) do
+    js
+    |> JS.show(to: "#mobile-navigation")
+    |> JS.add_class("overflow-hidden", to: "body")
+  end
+
+  def hide_mobile_navigation(js \\ %JS{}) do
+    js
+    |> JS.hide(to: "#mobile-navigation")
+    |> JS.remove_class("overflow-hidden", to: "body")
+  end
+
+  def toggle_mobile_navigation(assigns) do
+    ~H"""
+    <button type="button" phx-click={show_mobile_navigation()}>
+      <.icon name="hero-bars-3-solid" class="h-6 w-6 bg-slate-500 flex-none fill-current" />
+    </button>
+    """
+  end
+
+  def mobile_navigation(assigns) do
+    ~H"""
+    <div
+      id="mobile-navigation"
+      class="fixed inset-0 overflow-y-auto z-50 bg-slate-900/50 pr-10 backdrop-blur hidden"
+    >
+      <div
+        phx-click-away={hide_mobile_navigation()}
+        class="min-h-full w-full max-w-xs bg-white px-4 pb-12 pt-5 sm:px-6 dark:bg-slate-900"
+      >
+        <div class="flex items-center mb-2">
+          <button id="mobile-navigation-close" type="button" phx-click={hide_mobile_navigation()}>
+            <.icon name="hero-x-mark-solid" class="h-6 w-6 bg-slate-500 flex-none fill-current" />
+          </button>
+        </div>
+        <.navigation
+          pathname={assigns[:pathname]}
+          locale={assigns[:locale]}
+          on_click={JS.dispatch("click", to: "#mobile-navigation-close")}
+        />
+      </div>
+    </div>
+    """
+  end
+
+  attr :class, :string, default: ""
+  attr :locale, :string, default: "en"
+  attr :pathname, :string, default: "/"
+  attr :on_click, Phoenix.LiveView.JS, default: %Phoenix.LiveView.JS{}
+
+  def navigation(assigns) do
+    assigns =
+      assign_new(assigns, :pathname, fn -> "/" end)
+      |> assign(:items, Relicario.Pages.content_map(assigns[:locale] || "en"))
+
+    ~H"""
+    <nav class={"text-base lg:text-sm #{@class}"}>
+      <ul role="list" class="space-y-9">
+        <%= for section <- @items do %>
+          <li>
+            <h2 class="font-display font-medium text-slate-900 dark:text-white">
+              {section.title}
+            </h2>
+            <ul
+              role="list"
+              class="mt-2 space-y-2 border-l-2 border-slate-100 lg:mt-4 lg:space-y-4 lg:border-slate-200 dark:border-slate-800"
+            >
+              <%= for link <- section.links do %>
+                <li class="relative">
+                  <.link
+                    patch={link.href}
+                    class={link_class(link.href, @pathname)}
+                    phx-click={@on_click}
+                  >
+                    {link.title}
+                  </.link>
+                </li>
+              <% end %>
+            </ul>
+          </li>
+        <% end %>
+      </ul>
+    </nav>
+    """
+  end
+
+  def toggle_locale(assigns) do
+    ~H"""
+    <button
+      :for={lang <- ["br", "en"]}
+      :if={@locale != lang}
+      phx-click={JS.navigate("#{@base_url_for_locale}#{lang}")}
+      type="button"
+      aria-label={gettext("Toggle locale")}
+      class="group rounded-lg bg-white/90 px-2 py-2 shadow-md shadow-black/5 ring-1 ring-black/5 backdrop-blur transition dark:bg-slate-700 dark:ring-inset dark:ring-white/5"
+    >
+      <img
+        src={"/images/flags/#{@locale}.png"}
+        alt={gettext("Toggle locale")}
+        class="h-5 w-5 fill-zinc-700 stroke-zinc-500 transition dark:fill-teal-400/10 dark:stroke-teal-500"
+      />
+    </button>
+    """
+  end
+
+  attr :table_of_contents, :list, required: true
+
+  def table_of_contents(assigns) do
+    assigns =
+      assign_new(assigns, :main, fn ->
+        {_, href, title} = List.first(assigns.table_of_contents)
+        %{href: href, title: title}
+      end)
+
+    assigns =
+      assign_new(assigns, :toc, fn ->
+        assigns.table_of_contents
+        |> Enum.drop(1)
+        |> Enum.reduce([], fn
+          {2, href, title}, items ->
+            [{href, title, []} | items]
+
+          {_, href, title}, [{parent_href, parent_title, items} | rest] ->
+            [{parent_href, parent_title, [{href, title} | items]} | rest]
+        end)
+        |> Enum.map(fn {href, title, items} ->
+          {href, title, Enum.reverse(items)}
+        end)
+        |> Enum.reverse()
+      end)
+
+    ~H"""
+    <nav class="w-56">
+      <h2
+        id="on-this-page-title"
+        class="font-display text-sm font-medium text-slate-900 dark:text-white"
+      >
+        {@main.title}
+      </h2>
+      <ol role="list" class="mt-4 space-y-3 text-sm">
+        <li :for={{href, title, items} <- @toc}>
+          <h3>
+            <.link
+              href={href}
+              class="font-normal text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 !text-sky-500"
+            >
+              {title}
+            </.link>
+          </h3>
+          <ol role="list" class="mt-2 space-y-3 pl-5 text-slate-500 dark:text-slate-400">
+            <li :for={{href, title} <- items} class="">
+              <.link href={href} class="hover:text-slate-600 dark:hover:text-slate-300">
+                {title}
+              </.link>
+            </li>
+          </ol>
+        </li>
+      </ol>
+    </nav>
+    """
+  end
+
+  @doc """
+  Shows progress bar in the page header.
+  """
+  attr :progress, :integer, default: 0, doc: "Page reading progress"
+
+  def progress_bar(assigns) do
+    ~H"""
+    <div
+      :if={@progress}
+      class="h-1 bg-sky-300 w-full"
+      id="progress-bar"
+      phx-hook="ReadingProgressHook"
+      style={"width: " <> Integer.to_string(@progress) <> "%"}
+    >
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a Hero component.
+
+  ## Examples
+    <.hero
+      title={"Road to Elixir"}
+      description={"lorem ipsum dolor"}
+      locale={assigns[:locale]}
+    />
+  """
+
+  attr :title, :string
+  attr :description, :string
+  attr :locale, :string
+
+  def hero(assigns) do
+    ~H"""
+    <div class="overflow-hidden bg-slate-900 dark:-mb-32 dark:mt-[-4.75rem] dark:pb-32 dark:pt-[4.75rem]">
+      <div class="py-16 sm:px-2 lg:relative lg:px-0 lg:py-24">
+        <div class="mx-auto flex flex-col max-w-2xl items-center gap-x-4 gap-y-12 px-4 lg:max-w-8xl lg:flex-row lg:px-6 xl:gap-x-8 xl:px-8">
+          <div class="h-56 w-56">
+            <img
+              src="/images/avatar_black.png"
+              alt={gettext("Adopt LiveView")}
+              class="h-52 w-52 mx-auto"
+            />
+          </div>
+          <div class="relative z-10 md:text-center lg:text-left col-span-4">
+            <div class="relative">
+              <p class="inline bg-gradient-to-r from-indigo-200 via-sky-400 to-indigo-200 bg-clip-text font-display text-5xl tracking-tight text-transparent">
+                {@title}
+              </p>
+              <p class="mt-3 text-2xl tracking-tight text-slate-400">
+                {@description}
+              </p>
+              <div class="mt-8 flex gap-4 md:justify-center lg:justify-start">
+                <.link_button class="rounded-full bg-sky-300 py-2 px-4 text-sm font-semibold text-slate-900 hover:bg-sky-200 focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/50 active:bg-sky-500">
+                  {gettext("Get started")}
+                </.link_button>
+              </div>
+            </div>
+          </div>
+          <div class="relative lg:static xl:pl-10">
+            <div class="absolute inset-x-[-50vw] -bottom-48 -top-32 [mask-image:linear-gradient(transparent,white,white)] lg:-bottom-32 lg:-top-32 lg:left-[calc(50%+14rem)] lg:right-0 lg:[mask-image:none] dark:[mask-image:linear-gradient(transparent,white,transparent)] lg:dark:[mask-image:linear-gradient(white,white,transparent)]">
+              <.hero_background />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  def hero_background(assigns) do
+    ~H"""
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 668 1069"
+      width={668}
+      height={1069}
+      fill="none"
+      class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:left-0 lg:translate-x-0 lg:translate-y-[-60%]"
+    >
+      <defs>
+        <clipPath>
+          <path fill="#fff" transform="rotate(-180 334 534.4)" d="M0 0h668v1068.8H0z" />
+        </clipPath>
+      </defs>
+      <g opacity=".4" strokeWidth={4}>
+        <path
+          opacity=".3"
+          d="M584.5 770.4v-474M484.5 770.4v-474M384.5 770.4v-474M283.5 769.4v-474M183.5 768.4v-474M83.5 767.4v-474"
+          stroke="#334155"
+        />
+        <path
+          d="M83.5 221.275v6.587a50.1 50.1 0 0 0 22.309 41.686l55.581 37.054a50.102 50.102 0 0 1 22.309 41.686v6.587M83.5 716.012v6.588a50.099 50.099 0 0 0 22.309 41.685l55.581 37.054a50.102 50.102 0 0 1 22.309 41.686v6.587M183.7 584.5v6.587a50.1 50.1 0 0 0 22.31 41.686l55.581 37.054a50.097 50.097 0 0 1 22.309 41.685v6.588M384.101 277.637v6.588a50.1 50.1 0 0 0 22.309 41.685l55.581 37.054a50.1 50.1 0 0 1 22.31 41.686v6.587M384.1 770.288v6.587a50.1 50.1 0 0 1-22.309 41.686l-55.581 37.054A50.099 50.099 0 0 0 283.9 897.3v6.588"
+          stroke="#334155"
+        />
+        <path
+          d="M384.1 770.288v6.587a50.1 50.1 0 0 1-22.309 41.686l-55.581 37.054A50.099 50.099 0 0 0 283.9 897.3v6.588M484.3 594.937v6.587a50.1 50.1 0 0 1-22.31 41.686l-55.581 37.054A50.1 50.1 0 0 0 384.1 721.95v6.587M484.3 872.575v6.587a50.1 50.1 0 0 1-22.31 41.686l-55.581 37.054a50.098 50.098 0 0 0-22.309 41.686v6.582M584.501 663.824v39.988a50.099 50.099 0 0 1-22.31 41.685l-55.581 37.054a50.102 50.102 0 0 0-22.309 41.686v6.587M283.899 945.637v6.588a50.1 50.1 0 0 1-22.309 41.685l-55.581 37.05a50.12 50.12 0 0 0-22.31 41.69v6.59M384.1 277.637c0 19.946 12.763 37.655 31.686 43.962l137.028 45.676c18.923 6.308 31.686 24.016 31.686 43.962M183.7 463.425v30.69c0 21.564 13.799 40.709 34.257 47.529l134.457 44.819c18.922 6.307 31.686 24.016 31.686 43.962M83.5 102.288c0 19.515 13.554 36.412 32.604 40.645l235.391 52.309c19.05 4.234 32.605 21.13 32.605 40.646M83.5 463.425v-58.45M183.699 542.75V396.625M283.9 1068.8V945.637M83.5 363.225v-141.95M83.5 179.524v-77.237M83.5 60.537V0M384.1 630.425V277.637M484.301 830.824V594.937M584.5 1068.8V663.825M484.301 555.275V452.988M584.5 622.075V452.988M384.1 728.537v-56.362M384.1 1068.8v-20.88M384.1 1006.17V770.287M283.9 903.888V759.85M183.699 1066.71V891.362M83.5 1068.8V716.012M83.5 674.263V505.175"
+          stroke="#334155"
+        />
+        <circle
+          cx="83.5"
+          cy="384.1"
+          r="10.438"
+          transform="rotate(-180 83.5 384.1)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="83.5"
+          cy="200.399"
+          r="10.438"
+          transform="rotate(-180 83.5 200.399)"
+          stroke="#334155"
+        />
+        <circle
+          cx="83.5"
+          cy="81.412"
+          r="10.438"
+          transform="rotate(-180 83.5 81.412)"
+          stroke="#334155"
+        />
+        <circle
+          cx="183.699"
+          cy="375.75"
+          r="10.438"
+          transform="rotate(-180 183.699 375.75)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="183.699"
+          cy="563.625"
+          r="10.438"
+          transform="rotate(-180 183.699 563.625)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="384.1"
+          cy="651.3"
+          r="10.438"
+          transform="rotate(-180 384.1 651.3)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="484.301"
+          cy="574.062"
+          r="10.438"
+          transform="rotate(-180 484.301 574.062)"
+          fill="#0EA5E9"
+          fillOpacity=".42"
+          stroke="#0EA5E9"
+        />
+        <circle
+          cx="384.1"
+          cy="749.412"
+          r="10.438"
+          transform="rotate(-180 384.1 749.412)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="384.1"
+          cy="1027.05"
+          r="10.438"
+          transform="rotate(-180 384.1 1027.05)"
+          stroke="#334155"
+        />
+        <circle
+          cx="283.9"
+          cy="924.763"
+          r="10.438"
+          transform="rotate(-180 283.9 924.763)"
+          stroke="#334155"
+        />
+        <circle
+          cx="183.699"
+          cy="870.487"
+          r="10.438"
+          transform="rotate(-180 183.699 870.487)"
+          stroke="#334155"
+        />
+        <circle
+          cx="283.9"
+          cy="738.975"
+          r="10.438"
+          transform="rotate(-180 283.9 738.975)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="83.5"
+          cy="695.138"
+          r="10.438"
+          transform="rotate(-180 83.5 695.138)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="83.5"
+          cy="484.3"
+          r="10.438"
+          transform="rotate(-180 83.5 484.3)"
+          fill="#0EA5E9"
+          fillOpacity=".42"
+          stroke="#0EA5E9"
+        />
+        <circle
+          cx="484.301"
+          cy="432.112"
+          r="10.438"
+          transform="rotate(-180 484.301 432.112)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="584.5"
+          cy="432.112"
+          r="10.438"
+          transform="rotate(-180 584.5 432.112)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="584.5"
+          cy="642.95"
+          r="10.438"
+          transform="rotate(-180 584.5 642.95)"
+          fill="#1E293B"
+          stroke="#334155"
+        />
+        <circle
+          cx="484.301"
+          cy="851.699"
+          r="10.438"
+          transform="rotate(-180 484.301 851.699)"
+          stroke="#334155"
+        />
+        <circle
+          cx="384.1"
+          cy="256.763"
+          r="10.438"
+          transform="rotate(-180 384.1 256.763)"
+          stroke="#334155"
+        />
+      </g>
+    </svg>
+    """
+  end
+
+  @doc """
+  Renders a link button.
+
+  ## Examples
+
+    <.link_button
+      href={"https://www.github.com"}
+      class="text-sky-500"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      View Github
+    </.link_button>
+  """
+  attr :class, :string, default: nil
+  attr :rest, :global, include: ~w(href target rel)
+  slot :inner_block, required: true
+
+  def link_button(assigns) do
+    ~H"""
+    <.link class={@class} {@rest}>
+      {render_slot(@inner_block)}
+    </.link>
+    """
+  end
+
+  defp link_class(href, pathname) when href == pathname,
+    do:
+      "block w-full pl-3.5 font-semibold text-sky-500 before:bg-sky-500 before:pointer-events-none before:absolute before:-left-1 before:top-1/2 before:h-1.5 before:w-1.5 before:-translate-y-1/2 before:rounded-full"
+
+  defp link_class(_, _),
+    do:
+      "block w-full pl-3.5 text-slate-500 before:hidden before:bg-slate-300 hover:text-slate-600 hover:before:block dark:text-slate-400 dark:before:bg-slate-700 dark:hover:text-slate-300"
+
   @doc """
   Renders a modal.
 
