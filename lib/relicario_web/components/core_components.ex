@@ -19,6 +19,77 @@ defmodule RelicarioWeb.CoreComponents do
 
   alias Phoenix.LiveView.JS
 
+  attr :class, :string, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def prose(assigns) do
+    assigns =
+      assign_new(assigns, :total_classes, fn ->
+        [
+          assigns.class || "",
+          "prose prose-slate max-w-none dark:prose-invert dark:text-slate-400",
+          # headings
+          "prose-headings:scroll-mt-28 prose-headings:font-display prose-headings:font-normal lg:prose-headings:scroll-mt-[8.5rem]",
+          # lead
+          "prose-lead:text-slate-500 dark:prose-lead:text-slate-400",
+          # links
+          "prose-a:font-semibold dark:prose-a:text-sky-400",
+          # link underline
+          "prose-a:no-underline prose-a:shadow-[inset_0_-2px_0_0_var(--tw-prose-background,#fff),inset_0_calc(-1*(var(--tw-prose-underline-size,4px)+2px))_0_0_var(--tw-prose-underline,theme(colors.sky.300))] hover:prose-a:[--tw-prose-underline-size:6px] dark:[--tw-prose-background:theme(colors.slate.900)] dark:prose-a:shadow-[inset_0_calc(-1*var(--tw-prose-underline-size,2px))_0_0_var(--tw-prose-underline,theme(colors.sky.800))] dark:hover:prose-a:[--tw-prose-underline-size:6px]",
+          # pre
+          "prose-pre:rounded-xl prose-pre:bg-slate-900 prose-pre:shadow-lg dark:prose-pre:bg-slate-800/60 dark:prose-pre:shadow-none dark:prose-pre:ring-1 dark:prose-pre:ring-slate-300/10",
+          # hr
+          "dark:prose-hr:border-slate-800"
+        ]
+        |> Enum.join(" ")
+      end)
+
+    ~H"""
+    <div class={@total_classes} {@rest}>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  attr :title, :string, required: true
+  attr :icon, :string, required: true
+  attr :description, :string, default: nil
+  attr :href, :string, required: false, default: nil
+  attr :under_construction, :boolean, default: false
+  attr :icon_class, :string, default: ""
+
+  def quick_link(assigns) do
+    ~H"""
+    <div class="group relative rounded-xl border border-slate-200 dark:border-slate-800">
+      <div
+        :if={@under_construction == false}
+        class="absolute -inset-px rounded-xl border-2 border-transparent opacity-0 [background:linear-gradient(var(--quick-links-hover-bg,theme(colors.sky.50)),var(--quick-links-hover-bg,theme(colors.sky.50)))_padding-box,linear-gradient(to_top,theme(colors.indigo.400),theme(colors.cyan.400),theme(colors.sky.500))_border-box] group-hover:opacity-100 dark:[--quick-links-hover-bg:theme(colors.slate.800)]"
+      >
+      </div>
+      <div class="relative overflow-hidden rounded-xl p-6">
+        <.icon name={@icon} class={"h-8 w-8 my-1 " <> @icon_class} />
+        <h2 class="mt-4 font-display text-base text-slate-900 dark:text-white">
+          <.link :if={@href} navigate={@href}>
+            <span class="absolute -inset-px rounded-xl"></span>
+            {@title}
+          </.link>
+          <div :if={@under_construction}>
+            <span class="absolute -inset-px rounded-xl"></span>
+            {@title}
+          </div>
+        </h2>
+        <span :if={@under_construction} class="rounded-lg bg-red-500 text-white text-xs px-1.5 py-0.5">
+          {gettext("Under construction")}
+        </span>
+        <p class="mt-1 text-sm text-slate-700 dark:text-slate-400">
+          {@description}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
   @doc """
   Renders a modal.
 
