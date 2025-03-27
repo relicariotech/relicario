@@ -9,7 +9,8 @@ defmodule Relicario.Application do
   def start(_type, _args) do
     children = [
       RelicarioWeb.Telemetry,
-      Relicario.Repo,
+      # Not using a database yet
+      # Relicario.Repo,
       {DNSCluster, query: Application.get_env(:relicario, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Relicario.PubSub},
       # Start the Finch HTTP client for sending emails
