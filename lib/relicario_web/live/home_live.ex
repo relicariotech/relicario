@@ -1,8 +1,6 @@
 defmodule RelicarioWeb.HomeLive do
   use RelicarioWeb, :live_view
 
-  # import RelicarioWeb.CustomComponents
-
   on_mount RelicarioWeb.RestoreLocale
 
   def handle_params(params, _uri, socket) do
@@ -15,7 +13,7 @@ defmodule RelicarioWeb.HomeLive do
       |> assign(
         locale: locale,
         base_url_for_locale: ~p"/",
-        page_title: gettext("Learn LiveView now!"),
+        page_title: gettext("relicario.tech"),
         page_description: gettext("Product development for the business that want to thrive."),
         metadata_url: metadata_url,
         show_hero: true
